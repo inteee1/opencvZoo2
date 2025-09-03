@@ -1,0 +1,39 @@
+import cv2
+import numpy as np
+
+def put_string(frame, text, pt, value, color=(120, 200, 90)):
+    text += str(value)
+    shade = (pt[0] + 2, pt[1] + 2)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(frame, text, shade, font, 0.7, (0, 0, 0), 2)
+    cv2.putText(frame, text, pt, font, 0.7, color, 2)
+
+
+
+def main():
+    cap = cv2.VideoCapture(0)
+
+    print(f"너비 {cap.get(cv2.CAP_PROP_FRAME_WIDTH)}")
+    print(f"높이 {cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
+    print(f"노출 {cap.get(cv2.CAP_PROP_EXPOSURE)}")
+    print(f"밝기 {cap.get(cv2.CAP_PROP_BRIGHTNESS)}")
+
+    if not cap.isOpened():
+        print("웹캠을 열 수 없습니다.")
+        return
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("프레임을 읽지 못 했습니다.")
+            break
+        
+        cv2.imshow("webcam", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+    
+if __name__ == "__main__":
+    main()
