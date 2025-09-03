@@ -6,16 +6,13 @@ import io # PIL 이미지를 OpenCV로 변환
 
 def main():
     olive, violet, brown = (128, 128, 0), (128, 0, 128), (42, 42, 165)
-    pt1, pt2 = (58, 230), (50, 310)
+    pt1, pt2, pt3 = (58, 230), (50, 310), (300, 310)
 
-#    cv2.putText(image,"simplex", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, olive, 2, cv2.LINE_AA)
-#    cv2.putText(image, "duplex", (50, 130), cv2.FONT_HERSHEY_DUPLEX, 1, violet, 2, cv2.LINE_AA)
-#    cv2.putText(image, "complex", (150, 230), cv2.FONT_HERSHEY_COMPLEX, 1, brown, 2, cv2.LINE_AA)
-#    cv2.putText(image, "italic", pt1,cv2.FONT_ITALIC, 1, (0, 0, 0), 2, cv2.LINE_AA)
-#    cv2.putText(image, "한글??", pt2, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 2, cv2.LINE_AA) 
-   
     image = np.zeros((350, 500, 3), np.uint8)
     image.fill(255)
+
+   
+    
     korean_text = "조금 길지만 한글이 됩니다!!"
     font_size = 30
     # 한국어 폰트 파일 경로 (시스템 폰트 사용, 예: Windows - 'malgun.ttf', macOS - 'AppleGothic.ttf', Linux - Noto Sans)
@@ -39,6 +36,13 @@ def main():
     # PIL을 OpenCV로 변환 (RGBA -> BGR)
     pil_rgb = pil_img.convert('RGB')
     open_cv_img = cv2.cvtColor(np.array(pil_rgb), cv2.COLOR_RGB2BGR)
+    
+    cv2.putText(open_cv_img,"simplex", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, olive, 2, cv2.LINE_AA)
+    cv2.putText(open_cv_img, "duplex", (50, 130), cv2.FONT_HERSHEY_DUPLEX, 1, violet, 2, cv2.LINE_AA)
+    cv2.putText(open_cv_img, "complex", (150, 230), cv2.FONT_HERSHEY_COMPLEX, 1, brown, 2, cv2.LINE_AA)
+    cv2.putText(open_cv_img, "italic", pt1,cv2.FONT_ITALIC, 1, (0, 0, 0), 2, cv2.LINE_AA)
+    cv2.putText(open_cv_img, "한글??", pt3, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 2, cv2.LINE_AA) 
+   
     cv2.imshow("PIL text", open_cv_img)
 
    # ft = cv2.freetype.createFreeType2()
@@ -50,7 +54,7 @@ def main():
     
    
  
-#    cv2.imshow("putText", image)
+    #cv2.imshow("putText", image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     
