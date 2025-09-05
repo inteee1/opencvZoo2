@@ -10,7 +10,12 @@ def put_string(frame, text, pt, value, color=(120, 200, 90)):
 
 
 def main():
-    cap = cv2.VideoCapture("/home/ab123/opencvZoo2/data/vtest.avi")
+    cap = cv2.VideoCapture(0)
+
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FPS, 30)
 
     print(f"너비 {cap.get(cv2.CAP_PROP_FRAME_WIDTH)}")
     print(f"높이 {cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")

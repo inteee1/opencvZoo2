@@ -3,9 +3,11 @@ import numpy as np
 from textsprite import TextSprite
 from logosprite import LogoSprite
 from imagesprite import ImageSprite
+from videoSprite import VideoSprite
+from buttonsprite import ButtonSprite
 
 class MainDraw:
-    def __init__(self, screen_width=800, screen_height=600):
+    def __init__(self, screen_width=1200, screen_height=800):
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.canvas = np.zeros((screen_width, screen_height, 3), np.uint8)
@@ -33,8 +35,16 @@ class MainDraw:
         self.sprites.append(self.bgr_info_sprite)
 
         # 이미지 스프라이트 생성
-        self.image_sprite = ImageSprite(120, 60, "data/lenna.bmp", (400, 500))
+        self.image_sprite = ImageSprite(200, 200, "data/lenna.bmp", (400, 500))
         self.sprites.append(self.image_sprite)
+
+        # 비디오 스프라이트 생성
+        self.video_sprite = VideoSprite(120, 60, video_source=0, size=(640, 480))
+        self.sprites.append(self.video_sprite)
+
+        # 버튼 스프라이트 생성
+        self.button_sprite = ButtonSprite(450, 10, width=100, height=50, text="클릭")
+        self.sprites.append(self.button_sprite)
 
     def update_bgr_info(self):
         """BGR 정보 텍스트 업데이트"""
@@ -62,11 +72,18 @@ class MainDraw:
                 cv2.circle(clone_img, (x, y), 10, (0, 255, 0), -1)
                 cv2.line(clone_img, self.mouse_position, (x, y), (255, 255, 255), 2)
             else:
-                cv2.rectangle(clone_img, (x-10, y-10), (x+10, y+10), (255, 0, 0), -1)
+                cv2.rectangle(clone_img, (x-10, y-10), (x+10, y+10), (255, 0, 0), -1)       
         elif event == cv2.EVENT_LBUTTONDOWN:
             if not self.mouse_on:
                 self.mouse_position = (x, y)
             self.mouse_on = True
+             # 버튼의 위치와 마우스 위치를 비교하여 클릭 여부 판단
+            if self.button_sprite.x <= x <= self.button_sprite.x + self.button_sprite.width and \
+                self.button_sprite.y <= y <= self.button_sprite.y + self.button_sprite.height:
+                    cv2.rectangle(clone_img, (self.button_sprite.x, self.button_sprite.y), (self.button_sprite.x + self.button_sprite.width, self.button_sprite.y + self.button_sprite.height), (0, 0, 255), -1)
+                    if cv2.EVENT_FLAG_LBUTTON:
+                        print("버튼 클릭됨!")
+                        self.sprites[1] = TextSprite(120, 10, "버튼 클릭됨!", 30, (255, 0, 0, 0))
         elif event == cv2.EVENT_LBUTTONUP:
             cv2.line(self.canvas, self.mouse_position, (x, y), (255, 255, 255), 2)
             self.mouse_on = False
@@ -112,11 +129,11 @@ class MainDraw:
 
         # 초기 화면 설정
         self.update_bgr_info()
-        self.draw_all_sprites(self.canvas)
+        # self.draw_all_sprites(self.canvas)
         cv2.imshow("main", self.canvas)
 
         while True:
-            key = cv2.waitKeyEx(30)
+            key = cv2.waitKeyEx(1)
             if key == 27:  # ESC 키
                 break
 
@@ -128,6 +145,16 @@ class MainDraw:
             elif key in [65362, 65364, 2621440, 2490368]:
                 self.handle_value_adjustment(key)
             
+            elif key in [ord('d')]:
+                self.text_sprite.text = ""
+                self.sprites[1] = TextSprite(400, 10, "          ", 30, (255, 0, 0, 0))
+                
+            elif key in [ord('e')]:
+                self.sprites[1] = TextSprite(600, 10, "OpenCV", 30, (255, 0, 0, 0))
+
+            elif key in [ord('q')]:
+                self.sprites[1] = TextSprite(120, 10, "즐거운 OpenCV 수업!", 30, (255, 0, 0, 0))
+
             # 모든 스프라이트 업데이트
             self.update_all_sprites()
 
