@@ -5,7 +5,7 @@ from sprite import Sprite
 
 class LogoSprite(Sprite):
     """로고 스프라이트 클래스"""
-    def __init__(self, x, y, logo_path="/home/ab123/opencvZoo2/data/아무거나.png", size=(100, 100)):
+    def __init__(self, x, y, logo_path="/home/inteee/opencvZoo2/data/아무거나.png", size=(100, 100)):
         super().__init__(x, y)
         self.logo_path = logo_path
         self.size = size

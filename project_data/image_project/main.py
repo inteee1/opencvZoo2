@@ -3,18 +3,41 @@ import numpy as np
 from textsprite import TextSprite
 from logosprite import LogoSprite
 from imagesprite import ImageSprite
+from imagesprite2 import ImageSprite2
 from videoSprite import VideoSprite
 from buttonsprite import ButtonSprite
+from slideSprite import SlideSprite
 
 class MainDraw:
     def __init__(self, screen_width=1200, screen_height=800):
         self.screen_width = screen_width
         self.screen_height = screen_height
-        self.canvas = np.zeros((screen_width, screen_height, 3), np.uint8)
+        self.canvas = np.zeros((screen_height, screen_width, 3), np.uint8)
         self.mouse_position = (0, 0)
         self.mouse_on = False
         self.selected_channel = 'r'
         self.bgr_values = [0, 0, 0]  # [B, G, R]
+        self.dragging_slider = None # 현재 드래그 중인 슬라이더
+        self.dragging_image_sprite = None  # 현재 드래그 중인 이미지 스프라이트 상태
+
+        
+        # 모드 관리
+        self.current_mode = 0
+        self.mode_names = ["캐니", "정상", "블러", "욜로", "ORB 매처", "affine 모드", "perspective 모드", "핸드포즈"]
+        self.mode_subscribers = []  # 모드 변경을 구독하는 스프라이트들
+
+        # 모드별 활성 스프라이트 정의
+        self.mode_active_sprites = {
+            0: ['video'],    # 캐니: 비디오만
+            1: ['video'],    # 정상: 비디오만
+            2: ['video'],    # 블러: 비디오만
+            3: ['video'],    # 욜로: 비디오만
+            4: ['video'],    # ORB 매처: 비디오만
+            5: ['image1'],   # affine 모드: 이미지1만
+            6: ['image2'],    # perspective 모드: 이미지2만
+            7: ['video'],    # 핸드포즈 모드 : 비디오만
+        }
+
 
         # 스프라이트 리스트 초기화
         self.sprites = []
@@ -35,8 +58,12 @@ class MainDraw:
         self.sprites.append(self.bgr_info_sprite)
 
         # 이미지 스프라이트 생성
-        self.image_sprite = ImageSprite(200, 200, "data/lenna.bmp", (400, 500))
+        self.image_sprite = ImageSprite(120, 60, "/home/inteee/opencvZoo2/data/lenna.bmp", (640, 480))
         self.sprites.append(self.image_sprite)
+        
+         # 이미지 스프라이트2 생성
+        self.image_sprite2 = ImageSprite2(120, 60, "/home/inteee/opencvZoo2/data/lenna.bmp", (640, 480))
+        self.sprites.append(self.image_sprite2)
 
         # 비디오 스프라이트 생성
         self.video_sprite = VideoSprite(120, 60, video_source=0, size=(640, 480))
@@ -44,8 +71,30 @@ class MainDraw:
 
         # 버튼 스프라이트 생성
         self.button_sprite = ButtonSprite(450, 10, width=100, height=50, text="클릭")
+        self.button_sprite.mode_text = self.mode_names
         self.sprites.append(self.button_sprite)
 
+        # RGB 슬라이더 생성
+        self.red_slider = SlideSprite(800, 100, width=200, height=40, min_value=0, max_value=255,
+                                     value=0, label="Red", color=(50, 50, 100))
+        self.sprites.append(self.red_slider)
+
+        self.green_slider = SlideSprite(800, 150, width=200, height=40, min_value=0, max_value=255,
+                                       value=0, label="Green", color=(50, 100, 50))
+        self.sprites.append(self.green_slider)
+
+        self.blue_slider = SlideSprite(800, 200, width=200, height=40, min_value=0, max_value=255,
+                                      value=0, label="Blue", color=(100, 50, 50))
+        self.sprites.append(self.blue_slider)
+
+    def update_bgr_from_sliders(self):
+        """슬라이더 값으로 BGR 업데이트"""
+        self.bgr_values[2] = self.red_slider.get_value()    # R
+        self.bgr_values[1] = self.green_slider.get_value()  # G
+        self.bgr_values[0] = self.blue_slider.get_value()   # B
+        self.canvas[::] = self.bgr_values
+        
+        
     def update_bgr_info(self):
         """BGR 정보 텍스트 업데이트"""
         info_text = f"B:{self.bgr_values[0]} G:{self.bgr_values[1]} R:{self.bgr_values[2]}"
@@ -68,25 +117,83 @@ class MainDraw:
         clone_img = self.canvas.copy()
 
         if event == cv2.EVENT_MOUSEMOVE:
-            if self.mouse_on:
+            # 슬라이더 드래그 처리
+            if self.dragging_slider:
+                self.dragging_slider.update_value_from_mouse(x)
+                self.update_bgr_from_sliders()
+            elif self.mouse_on:
                 cv2.circle(clone_img, (x, y), 10, (0, 255, 0), -1)
                 cv2.line(clone_img, self.mouse_position, (x, y), (255, 255, 255), 2)
             else:
-                cv2.rectangle(clone_img, (x-10, y-10), (x+10, y+10), (255, 0, 0), -1)       
+                cv2.rectangle(clone_img, (x-10, y-10), (x+10, y+10), (255, 0, 0), -1)
+
+            # ImageSprite 드래그 처리 이미지의 topleft, topright, bottomleft,일 때만 드래그 모드
+            if self.image_sprite.mode == 5:
+                if self.image_sprite.check_mouse_position(x, y):
+                     cv2.rectangle(clone_img, (self.image_sprite.x-10, self.image_sprite.y-10),
+                                  (self.image_sprite.x + self.image_sprite.size[0]+10, self.image_sprite.y + self.image_sprite.size[1]+10),
+                                  (0, 255, 255), 2)
+            # ImageSprite2 드래그 처리 이미지의 topleft, topright, bottomleft,일 때만 드래그 모드
+            if self.image_sprite.mode == 6:
+                if self.image_sprite2.check_mouse_position(x, y):
+                     cv2.rectangle(clone_img, (self.image_sprite2.x-10, self.image_sprite2.y-10),
+                                  (self.image_sprite2.x + self.image_sprite2.size[0]+10, self.image_sprite2.y + self.image_sprite2.size[1]+10),
+                                  (0, 255, 255), 2)
+                
+            
         elif event == cv2.EVENT_LBUTTONDOWN:
-            if not self.mouse_on:
-                self.mouse_position = (x, y)
-            self.mouse_on = True
-             # 버튼의 위치와 마우스 위치를 비교하여 클릭 여부 판단
-            if self.button_sprite.x <= x <= self.button_sprite.x + self.button_sprite.width and \
-                self.button_sprite.y <= y <= self.button_sprite.y + self.button_sprite.height:
-                    cv2.rectangle(clone_img, (self.button_sprite.x, self.button_sprite.y), (self.button_sprite.x + self.button_sprite.width, self.button_sprite.y + self.button_sprite.height), (0, 0, 255), -1)
+            # 슬라이더 클릭 확인
+            slider_clicked = False
+            for slider in [self.red_slider, self.green_slider, self.blue_slider]:
+                if slider.start_drag(x, y):
+                    self.dragging_slider = slider
+                    self.update_bgr_from_sliders()
+                    slider_clicked = True
+                    break
+                
+            # ImageSprite 클릭 확인
+            if self.image_sprite.mode == 5 and self.image_sprite.check_mouse_position(x, y):
+                cv2.circle(clone_img, (x, y), 10, (0, 0, 255), -1)
+                self.dragging_image_sprite = True
+             # ImageSprite2 클릭 확인
+            if self.image_sprite2.mode == 6 and self.image_sprite2.check_mouse_position(x, y):
+                cv2.circle(clone_img, (x, y), 10, (0, 0, 255), -1)
+                self.dragging_image_sprite = True
+
+            if not slider_clicked:
+                if not self.mouse_on:
+                    self.mouse_position = (x, y)
+                self.mouse_on = True
+                if self.button_sprite.check_mouse_position(x, y):
+                    cv2.rectangle(clone_img, (self.button_sprite.x, self.button_sprite.y),
+                                  (self.button_sprite.x + self.button_sprite.width, self.button_sprite.y + self.button_sprite.height),
+                                  (0, 0, 255), -1)
                     if cv2.EVENT_FLAG_LBUTTON:
-                        print("버튼 클릭됨!")
-                        self.sprites[1] = TextSprite(120, 10, "버튼 클릭됨!", 30, (255, 0, 0, 0))
+                        self.video_sprite.mode = self.button_sprite.click()
+                        self.image_sprite.change_mode = True
+                        self.image_sprite2.change_mode = True
+                        self.image_sprite.mode = self.button_sprite.mode
+                        self.image_sprite2.mode = self.button_sprite.mode
+
+
         elif event == cv2.EVENT_LBUTTONUP:
-            cv2.line(self.canvas, self.mouse_position, (x, y), (255, 255, 255), 2)
-            self.mouse_on = False
+            # 슬라이더 드래그 종료
+            if self.dragging_slider:
+                self.dragging_slider.stop_drag()
+                self.dragging_slider = None
+            # imageSprite 드래그 종료
+            elif self.image_sprite.mode == 5 and self.dragging_image_sprite:
+                self.dragging_image_sprite = False
+                self.image_sprite.warpAffine(x,y)
+             # imageSprite2 드래그 종료
+            elif self.image_sprite2.mode == 6 and self.dragging_image_sprite:
+                self.dragging_image_sprite = False
+                self.image_sprite2.warpPerspective(x,y)
+                    
+                
+            elif self.mouse_on:
+                cv2.line(self.canvas, self.mouse_position, (x, y), (255, 255, 255), 2)
+                self.mouse_on = False
 
         self.draw_all_sprites(clone_img)
         cv2.imshow("main", clone_img)
@@ -104,23 +211,29 @@ class MainDraw:
         """BGR 값 조절 처리"""
         if key == 65362 or key == 2490368:  # 위쪽 화살표
             if self.selected_channel == 'r':
-                self.bgr_values[2] = min(255, self.bgr_values[2] + 5)
+                new_value = min(255, self.red_slider.get_value() + 5)
+                self.red_slider.set_value(new_value)
             elif self.selected_channel == 'g':
-                self.bgr_values[1] = min(255, self.bgr_values[1] + 5)
+                new_value = min(255, self.green_slider.get_value() + 5)
+                self.green_slider.set_value(new_value)
             elif self.selected_channel == 'b':
-                self.bgr_values[0] = min(255, self.bgr_values[0] + 5)
+                new_value = min(255, self.blue_slider.get_value() + 5)
+                self.blue_slider.set_value(new_value)
 
-            self.canvas[::] = self.bgr_values
+            self.update_bgr_from_sliders()
 
         elif key == 65364 or key == 2621440:  # 아래쪽 화살표
             if self.selected_channel == 'r':
-                self.bgr_values[2] = max(0, self.bgr_values[2] - 5)
+                new_value = max(0, self.red_slider.get_value() - 5)
+                self.red_slider.set_value(new_value)
             elif self.selected_channel == 'g':
-                self.bgr_values[1] = max(0, self.bgr_values[1] - 5)
+                new_value = max(0, self.green_slider.get_value() - 5)
+                self.green_slider.set_value(new_value)
             elif self.selected_channel == 'b':
-                self.bgr_values[0] = max(0, self.bgr_values[0] - 5)
+                new_value = max(0, self.blue_slider.get_value() - 5)
+                self.blue_slider.set_value(new_value)
 
-            self.canvas[::] = self.bgr_values
+            self.update_bgr_from_sliders()
 
     def run(self):
         """메인 실행 함수"""
@@ -144,16 +257,6 @@ class MainDraw:
             # 값 조절 처리
             elif key in [65362, 65364, 2621440, 2490368]:
                 self.handle_value_adjustment(key)
-            
-            elif key in [ord('d')]:
-                self.text_sprite.text = ""
-                self.sprites[1] = TextSprite(400, 10, "          ", 30, (255, 0, 0, 0))
-                
-            elif key in [ord('e')]:
-                self.sprites[1] = TextSprite(600, 10, "OpenCV", 30, (255, 0, 0, 0))
-
-            elif key in [ord('q')]:
-                self.sprites[1] = TextSprite(120, 10, "즐거운 OpenCV 수업!", 30, (255, 0, 0, 0))
 
             # 모든 스프라이트 업데이트
             self.update_all_sprites()

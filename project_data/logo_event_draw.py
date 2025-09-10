@@ -12,7 +12,7 @@ mouse_on = False
 
 
 #logo 및 마스크
-logo = cv2.imread("/home/ab123/opencvZoo2/data/아무거나.png", cv2.IMREAD_COLOR)
+logo = cv2.imread("/home/inteee/opencvZoo2/data/아무거나.png", cv2.IMREAD_COLOR)
 logo = cv2.resize(logo, (50, 50), logo)
 # logo = cv2.bitwise_not(logo)
 masks = cv2.threshold(logo, 220, 225, cv2.THRESH_BINARY)[1]
@@ -24,7 +24,7 @@ masks = cv2.split(masks)
 
 def make_txt_image(korean_text, font_size, color):
     # 한국어 폰트 파일 경로 (시스템 폰트 사용, 예: Windows - 'malgun.ttf', macOS - 'AppleGothic.ttf', Linux - Noto Sans)
-    font_path = '/home/ab123/opencvZoo2/data/NanumPenScript-Regular.ttf'  # 경로를 실제 폰트로 변경 (없으면 다운로드: Google Noto Sans KR)
+    font_path = '/home/inteee/opencvZoo2/data/NanumPenScript-Regular.ttf'  # 경로를 실제 폰트로 변경 (없으면 다운로드: Google Noto Sans KR)
     try:
         font = ImageFont.truetype(font_path, font_size)
     except:
