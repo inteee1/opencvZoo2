@@ -23,7 +23,7 @@ class MainDraw:
 
          # 모드 관리
         self.current_mode = 0
-        self.mode_names = ["캐니", "정상", "블러", "욜로", "ORB 매처", "affine 모드", "perspective 모드", "핸드포즈"]
+        self.mode_names = ["캐니", "정상", "블러", "욜로", "ORB 매처", "affine 모드", "perspective 모드", "핸드포즈", "yunet 얼굴인식", " SFace"]
         self.mode_subscribers = []  # 모드 변경을 구독하는 스프라이트들
 
          # 모드별 활성 스프라이트 정의
@@ -35,7 +35,10 @@ class MainDraw:
             4: ['video'],    # ORB 매처: 비디오만
             5: ['image1'],   # affine 모드: 이미지1만
             6: ['image2'],    # perspective 모드: 이미지2만
-            7: ['video']      # 핸드포즈: 비디오만
+            7: ['video'],     # 핸드포즈: 비디오만
+            8: ['video'],      # yunet: 비디오만
+            9: ['video']     # sface: 비디오만
+            
         }
 
         # 스프라이트 리스트 초기화
@@ -70,8 +73,10 @@ class MainDraw:
 
         # 버튼 스프라이트 생성
         self.button_sprite = ButtonSprite(450, 10, width=100, height=50, text="클릭")
+        self.button_sprite2 = ButtonSprite(560, 10, width=100, height=50, text="활성화")
         self.button_sprite.mode_texts = self.mode_names
         self.sprites.append(self.button_sprite)
+        self.sprites.append(self.button_sprite2)
 
         # RGB 슬라이더 생성
         self.red_slider = SlideSprite(800, 100, width=200, height=40, min_value=0, max_value=255,

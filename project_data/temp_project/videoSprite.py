@@ -5,6 +5,83 @@ from mediapipe import GestureClassification, MPHandPose, MPPalmDet, visualize
 from sprite import Sprite
 from ultralytics import YOLO
 
+def visualize_yunet(image, results, box_color=(0, 255, 0), text_color=(0, 0, 255), fps=None):
+    output = image.copy()
+    landmark_color = [
+        (255,   0,   0), # right eye
+        (  0,   0, 255), # left eye
+        (  0, 255,   0), # nose tip
+        (255,   0, 255), # right mouth corner
+        (  0, 255, 255)  # left mouth corner
+    ]
+
+    if fps is not None:
+        cv2.putText(output, 'FPS: {:.2f}'.format(fps), (0, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, text_color)
+
+    for det in results:
+        bbox = det[0:4].astype(np.int32)
+        cv2.rectangle(output, (bbox[0], bbox[1]), (bbox[0]+bbox[2], bbox[1]+bbox[3]), box_color, 2)
+
+        conf = det[-1]
+        cv2.putText(output, '{:.4f}'.format(conf), (bbox[0], bbox[1]+12), cv2.FONT_HERSHEY_DUPLEX, 0.5, text_color)
+
+        landmarks = det[4:14].astype(np.int32).reshape((5,2))
+        for idx, landmark in enumerate(landmarks):
+            cv2.circle(output, landmark, 2, landmark_color[idx], 2)
+
+    return output
+
+def visualize_sface(img1, faces1, img2, faces2, matches, scores, target_size=[512, 512]): # target_size: (h, w)
+    out1 = img1.copy()
+    out2 = img2.copy()
+    matched_box_color = (0, 255, 0)    # BGR
+    mismatched_box_color = (0, 0, 255) # BGR
+
+    # Resize to 256x256 with the same aspect ratio
+    padded_out1 = np.zeros((target_size[0], target_size[1], 3)).astype(np.uint8)
+    h1, w1, _ = out1.shape
+    ratio1 = min(target_size[0] / out1.shape[0], target_size[1] / out1.shape[1])
+    new_h1 = int(h1 * ratio1)
+    new_w1 = int(w1 * ratio1)
+    resized_out1 = cv2.resize(out1, (new_w1, new_h1), interpolation=cv2.INTER_LINEAR).astype(np.float32)
+    top = max(0, target_size[0] - new_h1) // 2
+    bottom = top + new_h1
+    left = max(0, target_size[1] - new_w1) // 2
+    right = left + new_w1
+    padded_out1[top : bottom, left : right] = resized_out1
+
+    # Draw bbox
+    bbox1 = faces1[0][:4] * ratio1
+    x, y, w, h = bbox1.astype(np.int32)
+    cv2.rectangle(padded_out1, (x + left, y + top), (x + left + w, y + top + h), matched_box_color, 2)
+
+    # Resize to 256x256 with the same aspect ratio
+    padded_out2 = np.zeros((target_size[0], target_size[1], 3)).astype(np.uint8)
+    h2, w2, _ = out2.shape
+    ratio2 = min(target_size[0] / out2.shape[0], target_size[1] / out2.shape[1])
+    new_h2 = int(h2 * ratio2)
+    new_w2 = int(w2 * ratio2)
+    resized_out2 = cv2.resize(out2, (new_w2, new_h2), interpolation=cv2.INTER_LINEAR).astype(np.float32)
+    top = max(0, target_size[0] - new_h2) // 2
+    bottom = top + new_h2
+    left = max(0, target_size[1] - new_w2) // 2
+    right = left + new_w2
+    padded_out2[top : bottom, left : right] = resized_out2
+
+    # Draw bbox
+    assert faces2.shape[0] == len(matches), "number of faces2 needs to match matches"
+    assert len(matches) == len(scores), "number of matches needs to match number of scores"
+    for index, match in enumerate(matches):
+        bbox2 = faces2[index][:4] * ratio2
+        x, y, w, h = bbox2.astype(np.int32)
+        box_color = matched_box_color if match else mismatched_box_color
+        cv2.rectangle(padded_out2, (x + left, y + top), (x + left + w, y + top + h), box_color, 2)
+
+        score = scores[index]
+        text_color = matched_box_color if match else mismatched_box_color
+        cv2.putText(padded_out2, "{:.2f}".format(score), (x + left, y + top - 5), cv2.FONT_HERSHEY_DUPLEX, 0.4, text_color)
+
+    return np.concatenate([padded_out1, padded_out2], axis=1)
 
 class VideoSprite(Sprite):
     """비디오 스프라이트 클래스"""
@@ -12,7 +89,7 @@ class VideoSprite(Sprite):
         super().__init__(x, y)
         self.video_source = video_source
         self.size = size
-        self.active_modes = active_modes or [0, 1, 2, 3, 4, 7]  # 기본값: 비디오 관련 모드들
+        self.active_modes = active_modes or [0, 1, 2, 3, 4, 7, 8, 9]  # 기본값: 비디오 관련 모드들
         self.cap = None
         self._load_image()
         self.mode = 0
@@ -228,6 +305,96 @@ class VideoSprite(Sprite):
         # cv2.imshow("Hand Pose 3D", view_3d)
         return frame
 
+   
+
+    def yunet_process(self, frame):
+        if not hasattr(self, 'yunet_model'):
+            from yunet import YuNet
+            self.yunet_model = YuNet(modelPath='/home/inteee/opencvZoo2/data/face_detection_yunet_2023mar.onnx',
+                  inputSize=[320, 320],
+                  confThreshold=0.9,
+                  nmsThreshold=0.3,
+                  topK=5000,
+                  backendId=cv2.dnn.DNN_BACKEND_OPENCV,
+                  targetId=cv2.dnn.DNN_TARGET_CPU
+                  )
+
+        # Inference
+        w, h = frame.shape[1], frame.shape[0]
+        self.yunet_model.setInputSize([w, h])
+        results = self.yunet_model.infer(frame)
+
+        # Draw results on the input image
+        frame = visualize_yunet(frame, results)
+        print(results)
+
+        return frame
+
+    def sface_process(self, frame):
+        if not hasattr(self, 'sface_model'):
+            from sface import SFace
+            from yunet import YuNet
+            
+            self.yunet_model2 = YuNet(modelPath='/home/inteee/opencvZoo2/data/face_detection_yunet_2023mar.onnx',
+                    inputSize=[320, 320],
+                    confThreshold=0.9,
+                    nmsThreshold=0.3,
+                    topK=5000,
+                    backendId=cv2.dnn.DNN_BACKEND_OPENCV,
+                    targetId=cv2.dnn.DNN_TARGET_CPU)
+            
+            self.sface_model = SFace(modelPath="/home/inteee/opencvZoo2/data/face_recognition_sface_2021dec.onnx",
+                       disType=0,
+                       backendId=cv2.dnn.DNN_BACKEND_OPENCV,
+                       targetId=cv2.dnn.DNN_TARGET_CPU)
+             # img 1 처리
+            self.img1 = cv2.imread("/home/inteee/opencvZoo2/data/face/10.jpg")
+            h1, w1 = self.img1.shape[0:2]
+            if max(h1, w1) > 640:
+                scale = 640 / max(h1, w1)
+                self.img1 = cv2.resize(self.img1, (int(w1 * scale), int(h1 * scale)))
+
+            self.yunet_model2.setInputSize([self.img1.shape[1], self.img1.shape[0]])
+            self.faces1 = self.yunet_model2.infer(self.img1)
+            #self.feature1 = self.sface_model.infer(self.img1, self.faces1[0][:-1])
+            cv2.imshow("img1", self.img1)
+        
+    
+        #self.yunet_model2.setInputSize([frame.shape[1], frame.shape[0]])
+        
+        h1, w1 = frame.shape[:2]
+        if max(h1, w1) > 640:
+            scale = 640 / max(h1, w1)
+            frame = cv2.resize(frame, (int(w1 * scale), int(h1 * scale)))
+
+        self.yunet_model2.setInputSize([frame.shape[1], frame.shape[0]])
+        self.faces = self.yunet_model2.infer(frame)
+        
+        self.scores = []
+        self.matches = []
+        
+        
+        for face in self.faces:
+            cosine_score, is_match = self.sface_model.match(frame, face[:-1], self.img1, self.faces1[0][:-1])
+            self.scores.append(cosine_score)
+            self.matches.append(1 if cosine_score >= self.sface_model._threshold_cosine else 0)
+        image = visualize_sface(self.img1, self.faces1, frame, self.faces, self.matches, self.scores)
+        
+        # for face in self.faces:   
+        #     self.feature2 = self.sface_model.infer(frame, face[:-1])
+        #     # if self._disType == 0: # COSINE
+        #     cosine_score = self.sface_model._model.match(self.feature1, self.feature2, 0)
+        #     self.scores.append(cosine_score)
+        #     self.matches.append( 1 if cosine_score >= self.sface_model._threshold_cosine else 0)
+           
+            # else: # NORM_L2
+            #     norml2_distance = self._model.match(feature1, feature2, self._disType)
+            #     return norml2_distance, 1 if norml2_distance <= self._threshold_norml2 else 0
+        
+        #image = visualize_sface(self.img1, self.face1, frame, self.faces, self.matches, self.scores)
+        print('Scores: ',self.scores)
+        return image 
+
     def draw(self, target_img):
         if self.image is not None:
             self._blit(target_img, self.x, self.y, self.image)
@@ -250,6 +417,9 @@ class VideoSprite(Sprite):
                 3: self._handle_yolo_mode,       # 욜로
                 4: self._handle_orb_mode,        # ORB 매처
                 7: self._handle_hand_pose,       # 핸드포즈
+                8: self._handle_yunet_mode,      # yunet mode
+                9: self._handle_sface_mode       # sface mode
+                
             }
 
             # 해당 모드의 핸들러가 있으면 실행, 없으면 기본 처리
@@ -292,6 +462,17 @@ class VideoSprite(Sprite):
         ret, self.image = self.cap.read()
         if ret:
             self.image = self.mp_hand_pose_process(self.image)
+    def _handle_yunet_mode(self):
+        """yunet 모드 처리"""
+        ret, self.image = self.cap.read()
+        if ret:
+          self.image = self.yunet_process(self.image)
+          
+    def _handle_sface_mode(self):
+        """yunet 모드 처리"""
+        ret, self.image = self.cap.read()
+        if ret:
+          self.image = self.sface_process(self.image)
 
     def _handle_default_mode(self):
         """기본 모드 처리 (알 수 없는 모드)"""
